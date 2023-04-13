@@ -1,0 +1,4 @@
+every a second:
+	loop all players:
+		set loop-player's tab list header to "<##ffd700>§lCasino §7- <##ffff00>§lNO MONEY NO LIFE"
+		set loop-player's tab list footer to "<##c9171e>Card §0- <##00984f>Board"

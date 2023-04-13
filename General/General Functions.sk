@@ -1,0 +1,275 @@
+options:
+	prefix: <##00FF00>[%{CLS::%{_player}%}%<##00FF00>]
+
+function playSound(sound: text, volume: number, pitch: number, location: object, personal: boolean = false):
+	if {_personal} is true:
+		play sound {_sound} with volume {_volume} with pitch {_pitch} to {_location}
+	else:
+		play sound {_sound} with volume {_volume} with pitch {_pitch} at {_location}
+
+function spawnMob(mob: entity type, name: text, loc: object):
+	spawn 1 of {_mob} at {_loc}
+	set spawned entity's display name to {_name}
+
+function drawCount(player: player) :: number:
+	add 1 to {EffectCount::%{_player}%}
+	return {EffectCount::%{_player}%}
+
+function gameMsg(game: text, msg: text):
+	loop all players:
+#		{Join::%loop-player%} is {_game}
+		message formatted {_msg} to loop-player
+
+function joinPlayerMsg(game: text, msg: text):
+	loop all players:
+		{Join::%loop-player%} is {_game}
+		message formatted {_msg} to loop-player
+
+function staffMsg(msg: text):
+	loop all players:
+		loop-player has permission "sk.admin"
+		message formatted {_msg} to loop-player
+
+function worldChecker(rule: text, stage: text) :: text:
+	replace every " " with "" in {_stage}
+	set {_stage} to "%{_rule}%-%{_stage}%"
+	return {_stage}
+
+function LastKiller(victim: entity, attacker: player):
+	if type of {_victim} is a player:
+		set {LastKiller::%{_victim}%} to {_attacker}
+		if {damager.%{_victim}%::*} does not contain {_attacker}:
+			add {_attacker} to {damager.%{_victim}%::*}
+
+function setSupporter(player: entity, supporter: player):
+	if {_player} is not {_supporter}:
+		if type of {_player} is a player:
+			if {supporter.%{_player}%::*} does not contain {_supporter}:
+				add {_supporter} to {supporter.%{_player}%::*}
+
+function aroundEffect(player: entity, dis: number = 1) :: location:
+	set {_loc} to location of {_player}
+	add a random number between {_dis} * -1 and {_dis} to x-coordinate of {_loc}
+	add a random number between 0 and {_dis} * 2 to y-coordinate of {_loc}
+	add a random number between {_dis} * -1 and {_dis} to z-coordinate of {_loc}
+	return {_loc}
+
+function randomVector(power: number = 0) :: vector:
+	set {_x} to a random number between -1 and 1
+	set {_y} to a random number between -1 and 1
+	set {_z} to a random number between -1 and 1
+	set {_vector} to vector({_x}, {_y}, {_z})
+	set {_vector} to normalized {_vector}
+	if {_power} is 0:
+		set {_pow} to a random number between 0 and 2
+	else:
+		set {_pow} to {_power}
+	set x of {_vector} to x of {_vector} * {_pow}
+	set y of {_vector} to y of {_vector} * {_pow}
+	set z of {_vector} to z of {_vector} * {_pow}
+	return {_vector}
+
+function setVector(from: location, to: location, power: number = 1) :: vector:
+	set {_fromv} to vector of {_from}
+	set {_tov} to vector of {_to}
+	set {_vector} to {_tov} -- {_fromv}
+	set {_vector} to normalized {_vector}
+	set x of {_vector} to x of {_vector} * {_power}
+	set y of {_vector} to y of {_vector} * {_power}
+	set z of {_vector} to z of {_vector} * {_power}
+	return {_vector}
+
+function randomUUID() :: text:
+	set {_uuid} to ""
+	set {_ln} to 0
+	loop 16 times:
+		add 1 to {_ln}
+		if mod({_ln} - 1, 4) = 0:
+			{_ln} is not 1
+			set {_uuid} to "%{_uuid}%-"
+		set {_num} to a random integer between 0 and 15
+		if {_num} < 10:
+			set {_num} to "%{_num}%"
+		else if {_num} = 10:
+			set {_num} to "a"
+		else if {_num} = 11:
+			set {_num} to "b"
+		else if {_num} = 12:
+			set {_num} to "c"
+		else if {_num} = 13:
+			set {_num} to "d"
+		else if {_num} = 14:
+			set {_num} to "e"
+		else if {_num} = 15:
+			set {_num} to "f"
+		set {_uuid} to "%{_uuid}%%{_num}%"
+	return {_uuid}
+
+function timeNumber(timer: text) :: number:
+	replace every " and " with "" in {_timer}
+	replace every ", " with "" in {_timer}
+	replace every " hours" with "h:" in {_timer}
+	replace every " hour" with "h:" in {_timer}
+	replace every " minutes" with "m:" in {_timer}
+	replace every " minute" with "m:" in {_timer}
+	replace every " seconds" with "s" in {_timer}
+	replace every " second" with "s" in {_timer}
+	set {_timers::*} to {_timer} split at ":"
+	loop {_timers::*}:
+		if loop-value contains "h":
+			set {_hour} to loop-value
+			replace every "h" with "" in {_hour}
+		if loop-value contains "m":
+			set {_minute} to loop-value
+			replace every "m" with "" in {_minute}
+		if loop-value contains "s":
+			if loop-value contains ".":
+				set {_seconds::*} to loop-value split at "."
+				loop {_seconds::*}:
+					if loop-value-2 contains "s":
+						set {_tick} to loop-value-2
+						replace every "s" with "" in {_tick}
+					else:
+						set {_second} to loop-value-2
+			else:
+				set {_second} to loop-value
+				replace every "s" with "" in {_second}
+	if {_hour} is not set:
+		set {_calc::hour} to 0
+	else:
+		set {_hour} to {_hour} parsed as number
+		set {_calc::hour} to {_hour}
+	if {_minute} is not set:
+		set {_calc::minute} to 0
+	else:
+		set {_minute} to {_minute} parsed as number
+		set {_calc::minute} to {_minute}
+	if {_second} is not set:
+		set {_calc::second} to 0
+	else:
+		set {_second} to {_second} parsed as number
+		set {_calc::second} to {_second}
+	if {_tick} is not set:
+		set {_calc::tick} to 0
+	else:
+		set {_tick} to {_tick} parsed as number
+		if {_tick} < 10:
+			set {_calc::tick} to {_tick} parsed as number
+		else:
+			set {_checktick} to "%{_tick}%"
+			replace every "0" with "" in {_checktick}
+			set {_calc::tick} to {_checktick} parsed as number
+	set {_timecalc} to 0
+	add {_calc::tick} to {_timecalc}
+	add ({_calc::second} * 100) to {_timecalc}
+	add ({_calc::minute} * 6000) to {_timecalc}
+	add ({_calc::hour} * 360000) to {_timecalc}
+	return {_timecalc}
+
+function timeDisplay(timecalc: number) :: text:
+	set {_hour} to 0
+	set {_minute} to 0
+	set {_second} to 0
+	set {_tick} to 0
+	while {_timecalc} >= 100:
+		if {_timecalc} >= 360000:
+			add 1 to {_hour}
+			subtract 360000 from {_timecalc}
+		else if {_timecalc} >= 6000:
+			add 1 to {_minute}
+			subtract 6000 from {_timecalc}
+		else if {_timecalc} >= 100:
+			add 1 to {_second}
+			subtract 100 from {_timecalc}
+	set {_tick} to {_timecalc}
+	if {_hour} < 10:
+		set {_hour} to "0%{_hour}%"
+	if {_minute} < 10:
+		set {_minute} to "0%{_minute}%"
+	if {_second} < 10:
+		set {_second} to "0%{_second}%"
+	if {_tick} < 10:
+		set {_tick} to "0%{_tick}%"
+	set {_display} to "%{_hour}%:%{_minute}%:%{_second}%:%{_tick}%"
+	return {_display}
+
+function playerRotation(player: player, yaw: number, pitch: number, relative: boolean = false):
+	if {_relative} is true:
+		execute console command "execute as %{_player}% at @s run teleport @s ~ ~ ~ ~%{_yaw}% ~%{_pitch}%"
+	else:
+		execute console command "execute as %{_player}% at @s run teleport @s ~ ~ ~ %{_yaw}% %{_pitch}%"
+
+function playerYawRotation(player: player, yaw: number, relative: boolean = false):
+	if {_relative} is true:
+		execute console command "execute as %{_player}% at @s run teleport @s ~ ~ ~ ~%{_yaw}% ~"
+	else:
+		execute console command "execute as %{_player}% at @s run teleport @s ~ ~ ~ %{_yaw}% ~"
+
+function playerPitchRotation(player: player, pitch: number, relative: boolean = false):
+	if {_relative} is true:
+		execute console command "execute as %{_player}% at @s run teleport @s ~ ~ ~ ~ %{_pitch}%"
+	else:
+		execute console command "execute as %{_player}% at @s run teleport @s ~ ~ ~ ~ ~%{_pitch}%"
+
+function setFuseTime(tnt: entity, tick: number):
+	set {_tnt.nbt} to nbt compound of {_tnt}
+	set tag "Fuse" of {_tnt.nbt} to {_tick}
+
+function itemTagChanger(item: item, tag: text, cont: object) :: item:
+	set {_nbt} to nbt item compound of {_item}
+	set tag {_tag} of {_nbt} to {_cont}
+	set {_newitem} to {_item} with nbt {_nbt}
+	return {_newitem}
+
+function chargeActionBar(player: player, active: number, max: number, active.color: text = "<##00ff00>", inactive.color: text = "<##808080>", bracket.color: text = "<##ffd700>"):
+	set {_line} to ""
+	loop {_max} times:
+		if loop-number <= {_active}:
+			set {_line} to "%{_line}%%{_active.color}%|"
+		else:
+			set {_line} to "%{_line}%%{_inactive.color}%|"
+	set {_line} to "%{_bracket.color}%[§r %{_line}% %{_bracket.color}%]§r"
+	send action bar {_line} to {_player}
+
+function playerCanSee(player: player, target: player) :: boolean:
+	set {_vector.base} to setVector(location of {_player}, location of {_target})
+	set {_dis} to distance between {_player} and {_target}
+	set {_toloc} to location {_dis} meters in front of {_player}
+	set {_vector.target} to setVector(location of {_player}, {_toloc})
+	set {_vector} to {_vector.target} -- {_vector.base}
+	set {_length} to squared length of {_vector}
+	if {_length} <= 0.5:
+		set {_m} to 0
+		set {_looploc} to location of {_player}
+		set yaw of {_looploc} to yaw of {_vector.base}
+		set pitch of {_looploc} to pitch of {_vector.base}
+		loop round({_dis}) times:
+			add 1 to {_m}
+			set {_bl} to location {_m} meters in front of {_looploc}
+			if block at {_bl} is not passable:
+				set {_false} to true
+		if {_false} is not set:
+			# log "playerCanSee(): true"
+			return true
+		else:
+			# log "playerCanSee(): false"
+			return false
+	else:
+		# log "playerCanSee(): false"
+		return false
+
+function packetGlowing(player: player, target: entity):
+	set {_pkt} to new play_server_entity_metadata packet
+	set field 0 of {_pkt} to id of {_target}
+	set {_dw} to new data watcher for {_target}
+	set datawatcher index 0 of {_dw} to (64 as byte) # 0x40
+	set field 1 of {_pkt} to {_dw}
+	send {_player} packet {_pkt}
+
+function packetUnglowing(player: player, target: entity):
+	set {_pkt} to new play_server_entity_metadata packet
+	set field 0 of {_pkt} to id of {_target}
+	set {_dw} to new data watcher for {_target}
+	set datawatcher index 0 of {_dw} to (0 as byte) # 0x40
+	set field 1 of {_pkt} to {_dw}
+	send {_player} packet {_pkt}

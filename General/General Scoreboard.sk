@@ -1,0 +1,15 @@
+on join:
+	baseSidebar(player, "Casino")
+
+function baseSidebar(player: player, game: text):
+	reset skoreboard of {_player}
+	setup skoreboard of {_player}
+	set {_uuid} to UUID of {_player}
+	set {Sidebar::%{_player}%} to {_game}
+	if {_game} is "Casino":
+		set title of skoreboard {_player} to "§a§lCasino"
+		set slot 1 of skoreboard {_player} to "§a§lLeafs§7: §b%{Coin::%{_uuid}%}%"
+
+every a second:
+	loop all players:
+		baseSidebar(loop-player, "Casino")
