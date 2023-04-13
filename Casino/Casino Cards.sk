@@ -1,0 +1,101 @@
+command /casino-card <text> <number=0>:
+	permission: sk.admin
+	trigger:
+		if arg 1 is "club", "diamond", "heart" or "spade":
+			if arg 2 is between 1 and 13:
+				load yml "plugins/skript-yaml/Casino Cards/Cards.yml" as "casino.cards"
+				set {_card} to player's tool
+				set yml value "%arg 1%.%arg 2%" from "casino.cards" to {_card}
+				save yml "casino.cards"
+			else:
+				message formatted "§c規定外のカードです" to player
+		else if arg 1 is "joker" or "back":
+			load yml "plugins/skript-yaml/Casino Cards/Cards.yml" as "casino.cards"
+			set {_card} to player's tool
+			set yml value "%arg 1%" from "casino.cards" to {_card}
+			save yml "casino.cards"
+		else:
+			message formatted "§c規定外のカードです" to player
+
+function casinoCardPack(joker: boolean) :: items:
+	load yml "plugins/skript-yaml/Casino Cards/Cards.yml" as "casino.cards"
+	loop yaml node keys "club" from "casino.cards":
+		set {_card} to yml value "%loop-node%" from "casino.cards"
+		add {_card} to {_cards::*}
+	loop yaml node keys "diamond" from "casino.cards":
+		set {_card} to yml value "%loop-node%" from "casino.cards"
+		add {_card} to {_cards::*}
+	loop yaml node keys "heart" from "casino.cards":
+		set {_card} to yml value "%loop-node%" from "casino.cards"
+		add {_card} to {_cards::*}
+	loop yaml node keys "spade" from "casino.cards":
+		set {_card} to yml value "%loop-node%" from "casino.cards"
+		add {_card} to {_cards::*}
+	if {_joker} is true:
+		set {_card} to yml value "joker" from "casino.cards"
+		add {_card} to {_cards::*}
+	return {_cards::*}
+
+function casinoCardText(card: number) :: text:
+	if {_card} is 1:
+		set {_text} to "A"
+	else if {_card} is 11:
+		set {_text} to "J"
+	else if {_card} is 12:
+		set {_text} to "Q"
+	else if {_card} is 13:
+		set {_text} to "K"
+	else:
+		set {_text} to "%{_card}%"
+	return {_text}
+
+function casinoCheckNumber(card: item) :: number:
+	load yml "plugins/skript-yaml/Casino Cards/Cards.yml" as "casino.cards"
+	loop yaml node keys "club" from "casino.cards":
+		if yml value "%loop-node%" from "casino.cards" is {_card}:
+			add loop-key to {_num::*}
+	loop yaml node keys "diamond" from "casino.cards":
+		if yml value "%loop-node%" from "casino.cards" is {_card}:
+			add loop-key to {_num::*}
+	loop yaml node keys "heart" from "casino.cards":
+		if yml value "%loop-node%" from "casino.cards" is {_card}:
+			add loop-key to {_num::*}
+	loop yaml node keys "spade" from "casino.cards":
+		if yml value "%loop-node%" from "casino.cards" is {_card}:
+			add loop-key to {_num::*}
+	if {_num::1} is set:
+		set {_num::1} to {_num::1} parsed as number
+	else:
+		set {_num::1} to 0
+	set {_num} to {_num::1}
+	return {_num}
+
+function casinoCardSet(card: text):
+	load yml "plugins/skript-yaml/Casino Cards/Cards.yml" as "casino.cards"
+	set {_item} to yml value {_card} from "casino.cards"
+	loop {Casino-Location.card::*}:
+		loop all entities:
+			type of loop-entity is an armor stand
+			location of block at loop-entity is location of block at loop-value-1
+			set helmet of loop-entity to {_item}
+
+function casinoItemSet(item: item):
+	loop {Casino-Location.card::*}:
+		loop all entities:
+			type of loop-entity is an armor stand
+			location of block at loop-entity is location of block at loop-value-1
+			set helmet of loop-entity to {_item}
+
+function casinoOneCardSet(card: text, slot: number):
+	load yml "plugins/skript-yaml/Casino Cards/Cards.yml" as "casino.cards"
+	set {_item} to yml value {_card} from "casino.cards"
+	loop all entities:
+		type of loop-entity is an armor stand
+		location of block at loop-entity is location of block at {Casino-Location.card::%{_slot}%}
+		set helmet of loop-entity to {_item}
+
+function casinoOneItemSet(item: item, slot: number):
+	loop all entities:
+		type of loop-entity is an armor stand
+		location of block at loop-entity is location of block at {Casino-Location.card::%{_slot}%}
+		set helmet of loop-entity to {_item}

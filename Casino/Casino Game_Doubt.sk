@@ -1,0 +1,317 @@
+options:
+	prefix: §0[§4§lDoubt§0]
+
+function casinoStartDoubt():
+	if {Casino-Gamestart::Doubt} is true:
+		stop
+	loop all players:
+		{Game::%loop-player%} is "Casino"
+		message formatted "{@prefix} §4§lダウト §5が開始されました..." to loop-player
+		playSound("entity.wither.spawn", 1, 0.5, loop-player, true)
+	set {Casino-Gamestart::Doubt} to true
+# 参加者決定
+	set {_mn} to 0
+	loop all players:
+		{Game::%loop-player%} is "Casino"
+		{Join::%loop-player%} is not set
+		set {Join::%loop-player%} to "Casino-Doubt"
+		add loop-player to {_joiners::*}
+		add 1 to {_mn}
+# 参加人数確認
+	if {_mn} is less than 2:
+		loop all players:
+			if {Join::%loop-player%} is "Casino-Doubt":
+				delete {Join::%loop-player%}
+			if {Game::%loop-player%} is "Casino":
+				message formatted "{@prefix} §4§lダウト §dは人数不足により中止されました" to loop-player
+		delete {Casino-Gamestart::Doubt}
+		stop
+	else:
+		loop {_joiners::*}:
+			loop all players:
+				{Join::%loop-player%} is not "Casino-Doubt"
+				hide loop-value-1 from loop-player
+		loop all players:
+			{Join::%loop-player%} is "Casino-Doubt"
+			clear loop-player's inventory
+	joinPlayerMsg("Casino-Doubt", "{@prefix} §7今回の参加者は...")
+	joinPlayerMsg("Casino-Doubt", "{@prefix} §8%{_joiners::*}%")
+	joinPlayerMsg("Casino-Doubt", "{@prefix} §7の §5§l%{_mn}% §7名です...")
+	wait 5 seconds
+# 席順決め
+	set {_locs::*} to casinoLocations({_mn})
+	set {_joinmembers::*} to {_joiners::*}
+	loop {_mn} times:
+		set {_rp} to a random player out of {_joinmembers::*}
+		remove {_rp} from {_joinmembers::*}
+		set {Casino-Number::%{_rp}%} to loop-number
+		spawn an armor stand at {_locs::%loop-number%} with nbt "{Invisible:1b,Invulnerable:1b,NoBasePlate:1b,Marker:1b,NoGravity:1b}"
+		set metadata value "casino-chair" of spawned armor stand to "%loop-number%"
+		make {_rp} ride spawned armor stand
+		set {_cardlocs::%loop-number%} to location 2.5 meters above {_locs::%loop-number%}
+		spawn an armor stand at {_cardlocs::%loop-number%} with nbt "{Invisible:1b,Invulnerable:1b,NoBasePlate:1b,Marker:1b,NoGravity:1b}"
+		set metadata value "casino-cards" of spawned armor stand to "%{_rp}%"
+		set spawned armor stand's display name to "§6§l0 §b枚"
+	wait 3 seconds
+# ラウンド 3
+	loop 3 times:
+#	カード配り
+		set {_cards::*} to casinoCardPack(false)
+		joinPlayerMsg("Casino-Doubt", "{@prefix} §dカードを配ります...")
+		set {_joinmembers::*} to {_joiners::*}
+		loop 52 times:
+			set {_rp} to a random player out of {_joinmembers::*}
+			remove {_rp} from {_joinmembers::*}
+			delete {_jmn}
+			loop {_joinmembers::*}:
+				add 1 to {_jmn}
+			if {_jmn} is not set:
+				set {_joinmembers::*} to {_joiners::*}
+			set {_card} to a random element out of {_cards::*}
+			remove {_card} from {_cards::*}
+			give {_card} to {_rp}
+			add {_card} to {Casino-Cards.%{_rp}%::*}
+			playSound("item.book.page_turn", 1, 2, {_rp}, true)
+			wait a tick
+		wait a second
+		casinoDoubtTimer()
+		loop all players:
+			{Join::%loop-player%} is "Casino-Doubt"
+			send title "<##dc143c>§k!!!  <##dc143c>§lゲーム開始 <##dc143c>§k!!!" with subtitle "<##d7cf3a>ラウンド §l%loop-number%" to loop-player for 10 seconds
+			message formatted "{@prefix} §4§lカードチェック§8の時間を20秒設けます..." to loop-player
+			playSound("block.end_portal.spawn", 0.5, 1, loop-player, true)
+		wait 20 seconds
+		set {_card} to 1
+		set {_playernumber} to 1
+#	ゲーム本体
+		while {_gameend} is not set:
+			loop {_joiners::*}:
+				{Casino-Number::%loop-value-2%} is {_playernumber}
+				set {_player} to loop-value-2
+			make {_player} dismount from any vehicles
+			set {Casino-Turn::%{_player}%} to true
+			set {_time} to 200
+			create bossbar titled "&5&lCARD TIME" and id "%{_player}%-Casino" for {_joiners::*} with progress 100 with colors purple with style solid
+#		カード選択時間
+			apply glowing 1 to {_player} for 15 seconds
+			while {_time} is more than 0:
+				if {_player} is online:
+					loop {_joiners::*}:
+						if loop-value-2 is not {_player}:
+							send title "§6§l%{_player}% §8のターンです" with subtitle "§7カード選択をお待ち下さい" to loop-value-2 for 5 ticks with fadein 0 second
+						else:
+							set {_cardtext} to casinoCardText({_card})
+							send title "§d現在 §5§l%{_cardtext}% §dです" with subtitle "§8出すカードを §6§lドロップ §8で選択してください" to loop-value-2 for 5 ticks with fadein 0 second
+					set {_prog} to {_time} / 2
+					set bossbar "%{_player}%-Casino" value to {_prog}
+					if {Casino-Turn::%{_player}%} is false:
+						set {_time} to 0
+					else:
+						subtract 1 from {_time}
+				else:
+					set {_time} to 0
+				wait a tick
+			if {Casino-Submit::%{_player}%} is not set:
+				set {_cardsub} to a random element out of {Casino-Cards.%{_player}%::*}
+				set {Casino-Submit::%{_player}%} to {_cardsub}
+				remove {_cardsub} from {_player}
+			remove bossbar "%{_player}%-Casino"
+			add {Casino-Submit::%{_player}%} to {_cardboard::*}
+			remove {Casino-Submit::%{_player}%} from {Casino-Cards.%{_player}%::*}
+			casinoCardSet("back")
+			loop {_joiners::*}:
+				message formatted "{@prefix} §d§l%{_player}% §5の§4§lカード選択§5が終了しました" to loop-value-2
+				playSound("item.book.page_turn", 1, 1, loop-value-2, true)
+			set {_time} to 100
+			create bossbar titled "&4&lDOUBT TIME" and id "%{_player}%-Doubt" for {_joiners::*} with progress 100 with colors red with style solid
+			apply glowing 1 to {_player} for 3 seconds
+#		ダウト選択時間
+			loop {_joiners::*}:
+				loop-value-2 is not {_player}
+				delete {Casino-Turn::%loop-value-2%}
+			delete {_doubt}
+			while {_time} is more than 0:
+				loop {_joiners::*}:
+					if loop-value-2 is not {_player}:
+						send title "§d現在 §5§l%{_cardtext}% §dです" with subtitle "§8ダウト申請は §6§l左クリック §8で行なえます" to loop-value-2 for 5 ticks with fadein 0 second
+						{_doubt} is not set
+						{Casino-Turn::%loop-value-2%} is false
+						set {_doubt} to loop-value-2
+					else:
+						set {_cardtext} to casinoCardText({_card})
+						send title "§bカード選択が完了しました" with subtitle "§7ダウト申請待機中です" to loop-value-2 for 5 ticks with fadein 0 second
+				if {_doubt} is set:
+					set {_time} to 0
+				else:
+					subtract 1 from {_time}
+					set {_prog} to {_time} / 100 * 100
+					set bossbar "%{_player}%-Doubt" value to {_prog}
+				wait a tick
+			remove bossbar "%{_player}%-Doubt"
+			remove glowing from {_player}
+#		ダウト発生
+			if {_doubt} is set:
+				apply glowing 1 to {_player} for 3 seconds
+				apply glowing 1 to {_doubt} for 3 seconds
+				loop {_joiners::*}:
+					message formatted "{@prefix} §5§l%{_doubt}% §c>> §4§lダウト!" to loop-value-2
+					playSound("entity.experience_orb.pickup", 1, 1, loop-value-2, true)
+				wait 3 seconds
+				set {_submitcard} to {Casino-Submit::%{_player}%}
+				set {_cardtext} to casinoCardText({_card})
+				casinoItemSet({_submitcard})
+#			ダウト成功
+				if display name of {_submitcard} does not contain {_cardtext}:
+					loop {_joiners::*}:
+						send title "%display name of {_submitcard}%" with subtitle "§4§lダウト§cは §5§l成功 §cしました!" to loop-value-2 for 5 seconds
+						playSound("entity.ender_dragon.growl", 1, 1, loop-value-2, true)
+					set {_cardloser} to {_player}
+#			ダウト失敗
+				else:
+					loop {_joiners::*}:
+						send title "%display name of {_submitcard}%" with subtitle "§4§lダウト§cは §1§l失敗 §cしました..." to loop-value-2 for 5 seconds
+						playSound("entity.ghast.hurt", 1, 1, loop-value-2, true)
+					set {_cardloser} to {_doubt}
+				apply glowing 1 to {_cardloser} for 5 seconds
+				loop {_cardboard::*}:
+					add loop-value-2 to {Casino-Cards.%{_cardloser}%::*}
+					give loop-value-2 to {_cardloser}
+					playSound("item.book.page_turn", 1, 2, {_cardloser}, true)
+					wait a tick
+				delete {_cardboard::*}
+				wait 5 seconds
+#		勝敗確認
+			delete {_cardamount}
+			loop {Casino-Cards.%{_player}%::*}:
+				add 1 to {_cardamount}
+#		ターン勝利
+			if {_cardamount} is not set:
+				set {_gameend} to true
+				loop {_joiners::*}:
+					set {_pt} to 0
+					if loop-value-2 is {_player}:
+						set {_pt} to 10
+						add {_pt} to {_points::%{_player}%}
+					else:
+						delete {_cardamount}
+						loop {Casino-Cards.%loop-value-2%::*}:
+							add 1 to {_cardamount}
+						if {_cardamount} is less than 4:
+							set {_pt} to 4 - {_cardamount}
+						add {_pt} to {_points::%loop-value-2%}
+					send title "§e§l%{_player}% §6が勝利しました!" with subtitle "§6獲得ポイント§e: §b§l%{_pt}%" to loop-value-2 for 10 seconds
+					playSound("entity.wolf.howl", 1, 0.5, loop-value-2, true)
+					message formatted "§e§m==========§6[§4§lランキング §cR.§b%loop-number-1%§6]§e§m==========" to loop-value-2
+				set {_pointchecker} to max({_points::*})
+				set {_rank} to 1
+				while {_pointchecker} is more than -1:
+					delete {_ranked}
+					delete {_rankers::*}
+					loop {_joiners::*}:
+						{_points::%loop-value-2%} is {_pointchecker}
+						set {_ranked} to true
+						add loop-value-2 to {_rankers::*}
+					loop {_rankers::*}:
+						loop {_joiners::*}:
+							message formatted "§e%{_rank}%§7. %loop-value-2% §a%{_pointchecker}%§2pt" to loop-value-3
+					subtract 1 from {_pointchecker}
+					if {_ranked} is true:
+						add 1 to {_rank}
+				wait 10 seconds
+#		値のセット
+			add 1 to {_card}
+			if {_card} is more than 13:
+				set {_card} to 1
+			add 1 to {_playernumber}
+			if {_playernumber} is more than {_mn}:
+				set {_playernumber} to 1
+			delete {Casino-Turn::*}
+			delete {Casino-Submit::*}
+			casinoItemSet(air)
+		delete {_cardboard::*}
+		loop all players:
+			{Join::%loop-player%} is "Casino-Doubt"
+			clear loop-player's inventory
+			delete {Casino-Cards.%loop-player%::*}
+		delete {_gameend}
+	set {_pointmax} to max({_points::*})
+	loop {_joiners::*}:
+		{_points::%loop-value%} is {_pointmax}
+		add loop-value to {_winners::*}
+	loop {_joiners::*}:
+		send title "§e§l%{_winners::*}% §cの勝利!" with subtitle "§6勝利ポイント§e: §b§l%{_pointmax}%" to loop-value for 10 seconds
+		playSound("entity.ender_dragon.death", 0.5, 1, loop-value, true)
+		message formatted "§e§m==========§6[§5§l最終ランキング§6]§e§m==========" to loop-value
+	set {_pointchecker} to {_pointmax}
+	set {_rank} to 1
+	while {_pointchecker} is more than -1:
+		delete {_ranked}
+		delete {_rankers::*}
+		loop {_joiners::*}:
+			{_points::%loop-value%} is {_pointchecker}
+			set {_ranked} to true
+			add loop-value to {_rankers::*}
+		loop {_rankers::*}:
+			loop {_joiners::*}:
+				message formatted "§e%{_rank}%§7. %loop-value-1% §a%{_pointchecker}%§2pt" to loop-value-2
+		subtract 1 from {_pointchecker}
+		if {_ranked} is true:
+			add 1 to {_rank}
+# 後処理
+	loop all entities:
+		type of loop-entity is an armor stand
+		metadata value "casino-chair" of loop-entity is set
+		delete loop-entity
+	loop {_joiners::*}:
+		delete {Join::%loop-value%}
+		delete {Casino-Number::%loop-value%}
+		loop all items in loop-value's inventory:
+			type of loop-item is a paper
+			delete loop-item
+		reveal loop-value from all players
+	delete {Casino-Gamestart::Doubt}
+
+function casinoDoubtTimer():
+	while {Casino-Gamestart::Doubt} is true:
+		loop all players:
+			{Join::%loop-player%} is "Casino-Doubt"
+			if {_cn::%loop-player%} is not set:
+				set {_cn::%loop-player%} to 0
+			delete {_cc}
+			loop all items in loop-player's inventory:
+				type of loop-item is a paper
+				add 1 to {_cc}
+			if {_cn::%loop-player%} is not {_cc}:
+				loop all entities:
+					"%world of loop-entity-2%" is "Casino-Lobby"
+					type of loop-entity-2 is an armor stand
+					metadata value "casino-cards" of loop-entity-2 is "%loop-player%"
+					set loop-entity-2's display name to "§6§l%{_cc}% §b枚"
+			if vehicle of loop-player is not an armor stand:
+				loop all entities:
+					"%world of loop-entity-2%" is "Casino-Lobby"
+					type of loop-entity-2 is an armor stand
+					metadata value "casino-chair" of loop-entity-2 is "%{Casino-Number::%loop-player%}%"
+					make loop-player ride loop-entity-2
+		wait a second
+
+on drop:
+	{Join::%player%} is "Casino-Doubt"
+	cancel event
+	if {Casino-Turn::%player%} is true:
+		set {Casino-Submit::%player%} to event-item
+		set {Casino-Turn::%player%} to false
+		wait a tick
+		remove event-item from player
+
+on leftclick:
+	{Join::%player%} is "Casino-Doubt"
+	if {Casino-Turn::%player%} is not set:
+		set {Casino-Turn::%player%} to false
+
+command /casino-debugclear:
+	permission: sk.admin
+	trigger:
+		loop all players:
+			delete {Casino-Cards.%loop-player%::*}
+		delete {Casino-Gamestart::Doubt}

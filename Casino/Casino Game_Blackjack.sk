@@ -1,0 +1,422 @@
+options:
+	prefix: §0[§4§lBlackjack§0]
+
+function casinoStartBlackjack():
+	if {Casino-Gamestart::Blackjack} is true:
+		stop
+	loop all players:
+		{Game::%loop-player%} is "Casino"
+		message formatted "{@prefix} §4§lブラックジャック §5が開始されました..." to loop-player
+		playSound("entity.wither.spawn", 1, 0.5, loop-player, true)
+	set {Casino-Gamestart::Blackjack} to true
+# 参加者決定
+	set {_mn} to 0
+	loop all players:
+		{Game::%loop-player%} is "Casino"
+		{Join::%loop-player%} is not set
+		set {Join::%loop-player%} to "Casino-Blackjack"
+		add loop-player to {_joiners::*}
+		add 1 to {_mn}
+# 参加人数確認
+	if {_mn} is less than 2:
+		loop all players:
+			if {Join::%loop-player%} is "Casino-Blackjack":
+				delete {Join::%loop-player%}
+			if {Game::%loop-player%} is "Casino":
+				message formatted "{@prefix} §4§lブラックジャック §dは人数不足により中止されました" to loop-player
+		delete {Casino-Gamestart::Doubt}
+		stop
+	else:
+		loop {_joiners::*}:
+			loop all players:
+				{Join::%loop-player%} is not "Casino-Blackjack"
+				hide loop-value-1 from loop-player
+		loop all players:
+			{Join::%loop-player%} is "Casino-Blackjack"
+			clear loop-player's inventory
+	joinPlayerMsg("Casino-Blackjack", "{@prefix} §7今回の参加者は...")
+	joinPlayerMsg("Casino-Blackjack", "{@prefix} §8%{_joiners::*}%")
+	joinPlayerMsg("Casino-Blackjack", "{@prefix} §7の §5§l%{_mn}% §7名です...")
+	wait 5 seconds
+# 席順決め
+	set {_locs::*} to casinoLocations({_mn})
+	set {_joinmembers::*} to {_joiners::*}
+	loop {_mn} times:
+		set {_rp} to a random player out of {_joinmembers::*}
+		remove {_rp} from {_joinmembers::*}
+		set {Casino-Number::%{_rp}%} to loop-number
+		set {Casino-Chips::%{_rp}%} to 100
+		spawn an armor stand at {_locs::%loop-number%} with nbt "{Invisible:1b,Invulnerable:1b,NoBasePlate:1b,Marker:1b,NoGravity:1b}"
+		set metadata value "casino-chair" of spawned armor stand to "%loop-number%"
+		make {_rp} ride spawned armor stand
+		set {_cardlocs::%loop-number%} to location 2.5 meters above {_locs::%loop-number%}
+		spawn an armor stand at {_cardlocs::%loop-number%} with nbt "{Invisible:1b,Invulnerable:1b,NoBasePlate:1b,Marker:1b,NoGravity:1b}"
+		set metadata value "casino-cards" of spawned armor stand to "%{_rp}%"
+		set spawned armor stand's display name to "§6§l0"
+	wait 3 seconds
+	casinoBlackjackTimer()
+# ラウンド 10
+	loop 10 times:
+#	カードパック作成
+		set {_cards::*} to casinoCardPack(false)
+#	賭金の設定
+		joinPlayerMsg("Casino-Blackjack", "{@prefix} §8賭金を §b20秒間 §8で設定してください...")
+		delete {Casino-BetDecide::*}
+		loop {_joiners::*}:
+			set {Casino-Bets::%loop-value-2%} to 10
+			casinoOpenChips(loop-value-2)
+		delete {_betok}
+		create bossbar titled "&6&lBET TIME &8[&b%loop-number%&8]" and id "Casino-Blackjack-Bet" for {_joiners::*} with progress 100 with colors yellow with style solid
+		loop 400 times:
+			if {_betok} is not set:
+				delete {_betnum}
+				loop {_joiners::*}:
+					if {Casino-BetDecide::%loop-value-3%} is true:
+						add 1 to {_betnum}
+					else if type of loop-value-3's current inventory is not chest inventory:
+						casinoOpenChips(loop-value-3)
+				if {_betnum} is {_mn}:
+					set {_betok} to true
+				set {_ln} to loop-number-2
+				set {_prog} to 100 - ({_ln} / 4)
+				set bossbar "Casino-Blackjack-Bet" value to {_prog}
+				wait a tick
+		remove bossbar "Casino-Blackjack-Bet"
+		loop {_joiners::*}:
+			set {Casino-Chips::%loop-value-2%} to {Casino-Chips::%loop-value-2%} - {Casino-Bets::%loop-value-2%}
+#	ホストカード配布
+		joinPlayerMsg("Casino-Blackjack", "{@prefix} §8賭金設定が終了しました §eカード§8を配ります")
+		set {_rc} to a random element out of {_cards::*}
+		remove {_rc} from {_cards::*}
+		add {_rc} to {_hostcards::*}
+		casinoOneItemSet({_rc}, 1)
+		casinoOneCardSet("back", 2)
+#	インベントリに操作アイコン
+		loop {_joiners::*}:
+			set slot 6 of loop-value-2 to a yellow dye named "§e§lヒット" with lore "§fカードを一枚引きます"
+			set slot 7 of loop-value-2 to a green dye named "§a§lスタンド" with lore "§f現在の手札で勝負します"
+			set slot 8 of loop-value-2 to a red dye named "§c§lダブルダウン" with lore "§f賭金を2倍にし,カードを一枚引きます" and "§fその後の手札で勝負します"
+#	2枚のカード配布
+		loop {_joiners::*}:
+			loop 2 times:
+				set {_rc} to a random element out of {_cards::*}
+				remove {_rc} from {_cards::*}
+				set {_rp} to loop-value-2
+				give {_rc} to {_rp}
+				add {_rc} to {Casino-Cards.%loop-value-2%::*}
+				playSound("item.book.page_turn", 1, 2, loop-value-2, true)
+				wait a tick
+		wait 5 seconds
+#	順番に行動を選択
+		set {_playernumber} to 1
+		while {_playernumber} <= {_mn}:
+			loop {_joiners::*}:
+				{Casino-Number::%loop-value-2%} is {_playernumber}
+				set {_player} to loop-value-2
+			create bossbar titled "&a&l%{_player}%&5&l's TURN &8[&b%loop-number%&8]" and id "%{_player}%-Casino" for {_joiners::*} with progress 100 with colors purple with style solid
+			delete {_turnend}
+			delete {Casino-Turn::%{_player}%}
+			delete {_blackjack}
+			loop 600 times:
+				if {_turnend} is not set:
+					if {Casino-Turn::%{_player}%} is "hit":
+						joinPlayerMsg("Casino-Blackjack", "{@prefix} §6§l%{_player}% §5>>> §e§lヒット!")
+						set {_rc} to a random element out of {_cards::*}
+						remove {_rc} from {_cards::*}
+						give {_rc} to {_player}
+						add {_rc} to {Casino-Cards.%{_player}%::*}
+						playSound("item.book.page_turn", 1, 2, {_player}, true)
+						loop {_joiners::*}:
+							playSound("ui.button.click", 1, 2, loop-value-3, true)
+					else if {Casino-Turn::%{_player}%} is "stand":
+						joinPlayerMsg("Casino-Blackjack", "{@prefix} §6§l%{_player}% §5>>> §a§lスタンド!")
+						loop {_joiners::*}:
+							playSound("entity.experience_orb.pickup", 1, 2, loop-value-3, true)
+						set {_turnend} to true
+					else if {Casino-Turn::%{_player}%} is "doubledown":
+						joinPlayerMsg("Casino-Blackjack", "{@prefix} §6§l%{_player}% §5>>> §c§lダブルダウン!")
+						loop {_joiners::*}:
+							playSound("entity.wither.hurt", 1, 2, loop-value-3, true)
+						set {_rc} to a random element out of {_cards::*}
+						remove {_rc} from {_cards::*}
+						give {_rc} to {_player}
+						add {_rc} to {Casino-Cards.%{_player}%::*}
+						playSound("item.book.page_turn", 1, 2, {_player}, true)
+						set {Casino-Chips::%{_player}%} to {Casino-Chips::%{_player}%} - {Casino-Bets::%{_player}%}
+						set {Casino-Bets::%{_player}%} to {Casino-Bets::%{_player}%} * 2
+						set {_doubledown::%{_player}%} to true
+						set {_turnend} to true
+					delete {Casino-Turn::%{_player}%}
+					set {_cardpoint} to casinoBlackjackCards({_player})
+					if {_cardpoint} is 21:
+						set {_blackjack} to true
+						set {_turnend} to true
+					else if {_cardpoint} >= 22:
+						joinPlayerMsg("Casino-Blackjack", "{@prefix} §6§l%{_player}% §5>>> §1§lバースト!")
+						loop {_joiners::*}:
+							playSound("entity.generic.explode", 1, 1, loop-value-3, true)
+						set {_turnend} to true
+						set {_bust::%{_player}%} to true
+					else:
+						set {_ln} to loop-number-2
+						set {_prog} to 100 - ({_ln} / 6)
+						set bossbar "%{_player}%-Casino" value to {_prog}
+						loop {_joiners::*}:
+							if loop-value-3 is {_player}:
+								send title "§b現在 §a§l%{_cardpoint}% §bです" with subtitle "§6§l右クリック §7で行動を選択してください" to loop-value-3 for 5 ticks with fadein 0 second
+							else:
+								send title "§6§l%{_player}% §8のターンです" with subtitle "§7ターン終了をお待ち下さい" to loop-value-3 for 5 ticks with fadein 0 second
+					wait a tick
+			remove bossbar "%{_player}%-Casino"
+#		ブラックジャックの処理
+			if {_blackjack} is true:
+				delete {_t}
+				delete {_e}
+				loop {Casino-Cards.%{_player}%::*}:
+					if display name of loop-value-2 contains "10", "J", "Q" or "K":
+						set {_t} to true
+					if display name of loop-value-2 contains "lA":
+						set {_e} to true
+				delete {_nn}
+				if {_t} is true:
+					add 1 to {_nn}
+				if {_e} is true:
+					add 1 to {_nn}
+				if {_nn} is 2:
+					set {Casino-Chips::%{_player}%} to {Casino-Chips::%{_player}%} - floor({Casino-Bets::%{_player}%} * 1.5)
+					set {Casino-Bets::%{_player}%} to floor({Casino-Bets::%{_player}%} * 2.5)
+					joinPlayerMsg("Casino-Blackjack", "{@prefix} §6§l%{_player}% §5>>> §4§lナチュラルブラックジャック!")
+					set {_natural::%{_player}%} to true
+					loop {_joiners::*}:
+						playSound("block.end_portal.spawn", 0.8, 1, loop-value-2, true)
+				else:
+					joinPlayerMsg("Casino-Blackjack", "{@prefix} §6§l%{_player}% §5>>> §8§lブラックジャック!")
+					loop {_joiners::*}:
+						playSound("entity.wither.spawn", 1, 1, loop-value-2, true)
+#		次の人へ回す処理
+			delete {Casino-Turn::%{_player}%}
+			add 1 to {_playernumber}
+			wait 3 seconds
+#	ホストのカード公開
+		joinPlayerMsg("Casino-Blackjack", "{@prefix} §5ホストのカードを公開します...")
+		wait 5 seconds
+		delete {_turnend}
+		set {_slot} to 1
+		while {_turnend} is not set:
+			set {_point} to casinoBlackjackHost({_hostcards::*})
+			if {_point} < 17:
+				add 1 to {_slot}
+				set {_rc} to a random element out of {_cards::*}
+				remove {_rc} from {_cards::*}
+				add {_rc} to {_hostcards::*}
+				playSound("item.book.page_turn", 1, 1, loop-value-2, true)
+				casinoOneItemSet({_rc}, {_slot})
+				wait a second
+			else:
+				set {_turnend} to true
+		wait 3 seconds
+#	結果発表
+		loop {_joiners::*}:
+			set {_cardpoint::%loop-value-2%} to casinoBlackjackCards(loop-value-2)
+		if {_point} <= 21:
+			loop {_joiners::*}:
+				if {_cardpoint::%loop-value-2%} >= 22:
+					send title "§4§lLOSE" with subtitle "§7賭金がホストに渡ります" to loop-value-2 for 5 seconds
+					playSound("entity.ghast.hurt", 1, 1, loop-value-2, true)
+				else if {_cardpoint::%loop-value-2%} = {_point}:
+					send title "§9§lDRAW" with subtitle "§7賭金が手元に戻ります" to loop-value-2 for 5 seconds
+					playSound("entity.wolf.ambient", 1, 1, loop-value-2, true)
+					add {Casino-Bets::%loop-value-2%} to {Casino-Chips::%loop-value-2%}
+				else if {_cardpoint::%loop-value-2%} > {_point}:
+					send title "§a§lWIN" with subtitle "§7賭金が倍になり帰ってきます" to loop-value-2 for 5 seconds
+					playSound("entity.ender_dragon.growl", 1, 1, loop-value-2, true)
+					add round({Casino-Bets::%loop-value-2%} * 2) to {Casino-Chips::%loop-value-2%}
+				else:
+					send title "§4§lLOSE" with subtitle "§7賭金がホストに渡ります" to loop-value-2 for 5 seconds
+					playSound("entity.ghast.hurt", 1, 1, loop-value-2, true)
+		else:
+			loop {_joiners::*}:
+				if {_cardpoint::%loop-value-2%} >= 22:
+					send title "§4§lLOSE" with subtitle "§7賭金がホストに渡ります" to loop-value-2 for 5 seconds
+					playSound("entity.ghast.hurt", 1, 1, loop-value-2, true)
+				else:
+					send title "§a§lWIN" with subtitle "§7賭金が倍になり帰ってきます" to loop-value-2 for 5 seconds
+					playSound("entity.ender_dragon.growl", 1, 1, loop-value-2, true)
+					add round({Casino-Bets::%loop-value-2%} * 2) to {Casino-Chips::%loop-value-2%}
+#	後処理
+		delete {_point}
+		delete {_cards::*}
+		delete {_hostcards::*}
+		delete {_cardpoint::*}
+		delete {_doubledown::*}
+		delete {_natural::*}
+		delete {Casino-BetDecide::*}
+		delete {Casino-Bets::*}
+		delete {Casino-Turn::*}
+		loop {_joiners::*}:
+			delete {Casino-Cards.%loop-value-2%::*}
+			clear loop-value-2's inventory
+		casinoItemSet(air)
+# 勝敗確認
+	set {_pointmax} to max({Casino-Chips::*})
+	loop {_joiners::*}:
+		{Casino-Chips::%loop-value%} is {_pointmax}
+		add loop-value to {_winners::*}
+	loop {_joiners::*}:
+		send title "§e§l%{_winners::*}% §cの勝利!" with subtitle "§6勝利チップ§e: §b§l%{_pointmax}%" to loop-value for 10 seconds
+		playSound("entity.ender_dragon.death", 0.5, 1, loop-value, true)
+		message formatted "§e§m==========§6[§5§l最終ランキング§6]§e§m==========" to loop-value
+	set {_pointchecker} to {_pointmax}
+	set {_rank} to 1
+	while {_pointchecker} is more than -1:
+		delete {_ranked}
+		delete {_rankers::*}
+		loop {_joiners::*}:
+			{Casino-Chips::%loop-value%} is {_pointchecker}
+			set {_ranked} to true
+			add loop-value to {_rankers::*}
+		loop {_rankers::*}:
+			loop {_joiners::*}:
+				message formatted "§e%{_rank}%§7. %loop-value-1% §a%{_pointchecker}%§2pt" to loop-value-2
+		subtract 1 from {_pointchecker}
+		if {_ranked} is true:
+			add 1 to {_rank}
+# 後処理
+	loop all entities:
+		type of loop-entity is an armor stand
+		if metadata value "casino-chair" of loop-entity is set:
+			delete loop-entity
+		else if metadata value "casino-cards" of loop-entity is set:
+			delete loop-entity
+	delete {Casino-Chips::*}
+	delete {Casino-Turn::*}
+	loop {_joiners::*}:
+		delete {Join::%loop-value%}
+		delete {Casino-Number::%loop-value%}
+		reveal loop-value from all players
+	delete {Casino-Gamestart::Blackjack}
+
+function casinoBlackjackTimer():
+	while {Casino-Gamestart::Blackjack} is true:
+		loop all players:
+			{Join::%loop-player%} is "Casino-Blackjack"
+			send action bar "§6チップ§7: §e§l%{Casino-Chips::%loop-player%}% §5| §4ベット§7: §c§l%{Casino-Bets::%loop-player%}%" to loop-player
+			if {_cn::%loop-player%} is not set:
+				set {_cn::%loop-player%} to 0
+			set {_cc} to casinoBlackjackCards(loop-player)
+			if {_cn::%loop-player%} is not {_cc}:
+				loop all entities:
+					"%world of loop-entity-2%" is "Casino-Lobby"
+					type of loop-entity-2 is an armor stand
+					metadata value "casino-cards" of loop-entity-2 is "%loop-player%"
+					set loop-entity-2's display name to "§a§l%{_cc}%"
+			if vehicle of loop-player is not an armor stand:
+				loop all entities:
+					"%world of loop-entity-2%" is "Casino-Lobby"
+					type of loop-entity-2 is an armor stand
+					metadata value "casino-chair" of loop-entity-2 is "%{Casino-Number::%loop-player%}%"
+					make loop-player ride loop-entity-2
+		wait a second
+
+function casinoBlackjackHost(cards: objects) :: number:
+	set {_point} to 0
+	loop {_cards::*}:
+		if display name of loop-value contains "J", "Q" or "K":
+			add 10 to {_point}
+		else if display name of loop-value contains "lA":
+			add 1 to {_a}
+		else:
+			set {_cn} to casinoCheckNumber(loop-value)
+			add {_cn} to {_point}
+	loop {_a} times:
+		add 11 to {_point}
+		if {_point} >= 22:
+			subtract 10 from {_point}
+	return {_point}
+
+function casinoBlackjackCards(player: player) :: number:
+	set {_playercards::*} to {Casino-Cards.%{_player}%::*}
+	loop {_playercards::*}:
+		if display name of loop-value contains "J", "Q" or "K":
+			add 10 to {_point}
+		else if display name of loop-value contains "lA":
+			add 1 to {_a}
+		else:
+			set {_cn} to casinoCheckNumber(loop-value)
+			add {_cn} to {_point}
+	loop {_a} times:
+		add 11 to {_point}
+		if {_point} >= 22:
+			subtract 10 from {_point}
+	return {_point}
+
+function casinoOpenChips(player: player):
+	wait a tick
+	open chest with 1 row named "§4§lブラックジャック§6賭金設定 §e所持チップ§7: §b§l%{Casino-Chips::%{_player}%}%" to {_player}
+	wait a tick
+	set slot 4 of {_player}'s current inventory to a gold block named "§e§l賭金決定" with lore "§b現在の賭金§7: §6§l%{Casino-Bets::%{_player}%}%"
+	set slot 2 of {_player}'s current inventory to a lime stained glass block named "§a賭金追加 §f[§a+§2§l1§f]"
+	set slot 6 of {_player}'s current inventory to a red stained glass block named "§c賭金減額 §f[§c-§4§l1§f]"
+	set slot 1 of {_player}'s current inventory to a lime concrete named "§a賭金追加 §f[§a+§2§l10§f]"
+	set slot 7 of {_player}'s current inventory to a red concrete named "§c賭金減額 §f[§c-§4§l10§f]"
+
+on inventory click:
+	{Join::%player%} is "Casino-Blackjack"
+	type of event-inventory is chest inventory
+	cancel event
+	if inventory name of event-inventory contains "§4§lブラックジャック§6賭金設定":
+		if clicked slot is 4:
+			set {Casino-BetDecide::%player%} to true
+			close player's inventory
+		else if clicked slot is 2:
+			if {Casino-Bets::%player%} >= 100:
+				message formatted "{@prefix} §cこれ以上の額には設定できません" to player
+			else:
+				add 1 to {Casino-Bets::%player%}
+			close player's inventory
+			casinoOpenChips(player)
+		else if clicked slot is 1:
+			if {Casino-Bets::%player%} >= 100:
+				message formatted "{@prefix} §cこれ以上の額には設定できません" to player
+			else:
+				if {Casino-Bets::%player%} >= 91:
+					set {_bet} to 100 - {Casino-Bets::%player%}
+				else:
+					set {_bet} to 10
+				add {_bet} to {Casino-Bets::%player%}
+			close player's inventory
+			casinoOpenChips(player)
+		else if clicked slot is 6:
+			if {Casino-Bets::%player%} <= 1:
+				message formatted "{@prefix} §cこれ以下の額には設定できません" to player
+			else:
+				subtract 1 from {Casino-Bets::%player%}
+			close player's inventory
+			casinoOpenChips(player)
+		else if clicked slot is 7:
+			if {Casino-Bets::%player%} <= 1:
+				message formatted "{@prefix} §cこれ以下の額には設定できません" to player
+			else:
+				if {Casino-Bets::%player%} <= 10:
+					set {_bet} to {Casino-Bets::%player%} - 1
+				else:
+					set {_bet} to 10
+				subtract {_bet} from {Casino-Bets::%player%}
+			close player's inventory
+			casinoOpenChips(player)
+
+on rightclick:
+	{Join::%player%} is "Casino-Blackjack"
+	if name of player's tool is "§e§lヒット":
+		set {Casino-Turn::%player%} to "hit"
+	else if name of player's tool is "§a§lスタンド":
+		set {Casino-Turn::%player%} to "stand"
+	else if name of player's tool is "§c§lダブルダウン":
+		set {Casino-Turn::%player%} to "doubledown"
+
+command /casino-blackjackclear:
+	permission: sk.admin
+	trigger:
+		loop all players:
+			delete {Casino-Cards.%loop-player%::*}
+		delete {Casino-Gamestart::Blackjack}

@@ -1,0 +1,18 @@
+function casinoGameInventory(player: player):
+	wait a tick
+	open chest with 1 row named "§4§lCasino §6§lGame Select" to {_player}
+	wait a tick
+	set slot 0 of {_player}'s current inventory to a paper named "§e§lダウト" with lore "§f推奨人数§7: §9§l4人～"
+	set slot 1 of {_player}'s current inventory to a paper named "§e§lブラックジャック" with lore "§f推奨人数§7: §9§l2人～"
+
+on inventory click:
+	{Game::%player%} is "Casino"
+	type of event-inventory is chest inventory
+	cancel event
+	if inventory name of event-inventory is "§4§lCasino §6§lGame Select":
+		if name of clicked item is "§e§lダウト":
+			close player's inventory
+			casinoStartDoubt()
+		else if name of clicked item is "§e§lブラックジャック":
+			close player's inventory
+			casinoStartBlackjack()

@@ -1,0 +1,21 @@
+on vehicle exit:
+	{Join::%player%} contains "Casino"
+	cancel event
+
+on sneak toggle:
+	{Join::%player%} contains "Casino"
+	wait 5 ticks
+	loop all entities:
+		type of loop-entity is an armor stand
+		metadata value "casino-chair" of loop-entity is "%{Casino-Number::%player%}%"
+		make player ride loop-entity
+
+on inventory click:
+	{Join::%player%} contains "Casino"
+	type of clicked item is not paper or air
+	cancel event
+
+command /casino-texture:
+	executable by: player
+	trigger:
+		send resource pack from "https://www.dropbox.com/s/qy3z555r95jx4e2/Leaf%%20Green%%20Server%%20Texture.zip?dl=1" to player

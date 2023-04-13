@@ -1,0 +1,28 @@
+command /casino-location <text>:
+	permission: sk.admin
+	trigger:
+		if arg 1 is "player" or "card":
+			set {_loc} to location of player
+			add {_loc} to {Casino-Location.%arg 1%::*}
+			message "§6§l%arg 1% §aの座標を追加しました" to player
+		else if arg 1 is "center":
+			set {_loc} to location of player
+			set {Casino-Location::Center} to {_loc}
+			message "§6§l%arg 1% §aの座標を設定しました" to player
+		else:
+			message "§c適切な値ではありません" to player
+
+function casinoLocations(member: number) :: locations:
+	if mod({_member}, 2) is 1:
+		set {_locnum} to {_member}
+	else:
+		set {_locnum} to {_member} - 1
+	loop {_member} times:
+		add {Casino-Location.player::%{_locnum}%} to {_locs::*}
+		if mod({_locnum}, 2) is 1:
+			subtract 2 from {_locnum}
+			if {_locnum} < 0:
+				add 3 to {_locnum}
+		else:
+			add 2 to {_locnum}
+	return {_locs::*}
